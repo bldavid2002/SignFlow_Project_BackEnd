@@ -82,6 +82,51 @@ flowchart TD
   class API,SEC,PDF app;
   class DB,S3 data;
 ```
+### REST API Endpoints
 
+The applications exposes a RESTful API. ALL endpoints are prefixed with "/api/v1". Endpoints interacting with documents will require a valid JWT token passed in the "Authorization" header as a Bearer token.
 
+## 1. Authentication - Public Endpoints:
+
+| HTTP Method | Endpoint | Description | Expected Payload | Response |
+| :--- | :--- | :--- | :--- | :--- |
+| **POST** | '/auth/register' | Registers a new user | '{"email": "test@test.com","password": "..."}' | '201 Created' |
+| **POST** | '/auth/login' | Authenticates a user and returns a JWT. | '{"email": "test@test.com","password": "..."}' | '200 OK (returns token)' |
+
+**Example Login Response:**
+```json
+{
+  "token": "tokentokentokentokentokentokentokentoken....",
+  "type": "Bearer",
+  "expires_in": 3600
+}
+```
+## 2. Document Management - Protected Endpoints
+| HTTP Method | Endpoint | Description | Expected Payload | Response |
+| :--- | :--- | :--- | :--- | :--- |
+| **GET** | '/documents' | Retrieves all documents owned by the user. | *None* | '200 OK (Array of documents)' |
+| **GET** | '/documents/{id}' | Retrieves data for a specififc doc. | *None* | '200 OK (doc object)' |
+| **GET** | '/documents/{id}/download' | Downloads the actual PDF file | *None* | '200 OK (pdf)' |
+| **POST** | '/documents' | Upload a new PDF file to AWS S3 | 'Multipart/form-data' (file) | '201 Created' |
+| **POST** | '/documents/{id}/sign' |Triggers the watermarking process on a specific pdf | *None* | '200 OK ' |
+| **DELETE** | '/documents/{id}' |Deletes a specific document data and removes the file from S3 | *None* | '204 No Content' |
+
+**Example GET '/documents/{id}' Response:**
+```json
+{
+  "id": "idididididididididid",
+  "fileName": "example.pdf",
+  "status": "SIGNED",
+  "createdAt": "2026-06-...",
+  "signedAt": "2026-06-..."
+}
+```
+
+## 3. User and token managemant Endpoints
+
+| HTTP Method | Endpoint | Description | Expected Payload | Response |
+| :--- | :--- | :--- | :--- | :--- |
+| **GET** | '/users/me' | Retrieves all profiledata of the currently authenticated user. | *None* | '200 OK (user object)' |
+| **PATCH** | '/documents/{id}' | Renames a document's display name | '{"fileName": "new_name.pdf}' | '200 OK' |
+| **GET** | '/health' | Application "heath" check for Docker/AWS load balancers | *None* | '200 OK' '{"status": "Up" }'|
 
