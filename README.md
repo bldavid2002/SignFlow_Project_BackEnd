@@ -41,3 +41,47 @@ erDiagram
   }
 
   USERS ||--o{ DOCUMENTS : "upload / owns"
+```
+
+### Architecture Diagram
+
+I chose a Layered architecture for this project. This will help me separate the concerns as well as help me easily implement changes, for example, to the UI. Although this approach might make the layers hard to scale, since it only implements one overarching feature, I tought it best to stick with a more straightfoward approach.
+
+## Layerd Architecture Diagram for the project:
+
+```mermaid
+flowchart TD
+  subgraph Client Tier
+    UI[Vue.js / Angular Web Client]
+  end
+
+  subgraph Application Tier
+    API[Spring Boot REST API]
+    SEC[Spring Security and JWT]
+    PDF[Apache PDFbox Service]
+
+    API --> SEC
+    API <--> PDF
+  end
+
+  subgraph Data and Cloud Tier
+    DB[(PostgreSQL Database)]
+    S3[AWS S3 Bucket]
+  end
+
+  %% Connections
+  UI <-->|HTTP REST / JSON| API
+  API <-->|JPA / Hibernate| DB
+  API <-->|AWS Java SDK| S3 
+
+  classDef client fill:lightblue,stroke:blue,stroke-width:2px,color:black;
+  classDef app fill:lightgreen,stroke:green,stroke-width:2px,color:black;
+  classDef data fill:navajowhite,stroke:orange,stroke-width:2px,color:black;
+
+  class UI client;
+  class API,SEC,PDF app;
+  class DB,S3 data;
+```
+
+
+
