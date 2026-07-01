@@ -1,0 +1,86 @@
+package com.signflow.backend.service;
+
+import com.signflow.backend.Entity.Document;
+import com.signflow.backend.Entity.DocumentStatus;
+import com.signflow.backend.Entity.User;
+import com.signflow.backend.dto.DocumentResponse;
+import com.signflow.backend.repository.DocumentRepository;
+import com.signflow.backend.repository.UserRepository;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
+import tools.jackson.core.PrettyPrinter;
+
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.List;
+import java.util.UUID;
+import java.util.stream.Collectors;
+
+@Service
+@RequiredArgsConstructor
+public class DocumentService {
+
+    private final DocumentRepository documentRepository;
+    private final UserRepository userRepository;
+
+    private String UPLOAD_DIRECTORY = "uploads/";
+
+    public DocumentResponse uploadedDocument(MultipartFile file, String userEmail) throws IOException{
+            User owner = userRepository.findByEmail(userEmail)
+                    .orElseThrow(()-> new RuntimeException("User not found"));
+
+        Path uploadPath = Paths.get(UPLOAD_DIRECTORY);
+        if (!Files.exists(uploadPath)){
+            Files.createDirectories(uploadPath);
+        }
+
+        String fileName = System.currentTimeMillis() + "_" + file.getOriginalFilename();
+        Path filePath = uploadPath.resolve(fileName);
+        Files.write(filePath, file.getBytes());
+
+        Document document = Document.builder()
+                .title(file.getOriginalFilename())
+                .fileUrl(filePath.toString())
+                .status(DocumentStatus.UPLOADED)
+                .owner(owner)
+                .build();
+
+        Document saveDoc = documentRepository.save(document);
+        return mapToDto(saveDoc);
+
+    }
+
+    public List<DocumentResponse> getAllUserDocuments(String userEmail) {
+        User owner = userRepository.findByEmail(userEmail).orElseThrow();
+        return documentRepository.findAllByOwnerId(owner.getId())
+                .stream()
+                .map(this::mapToDto)
+                .collect(Collectors.toList());
+    }
+
+    public void deleteDocument(UUID documentId, String userEmail) throws IOException{
+        Document document = documentRepository.findById(documentId)
+                .orElseThrow(() -> new RuntimeException("Document not found."));
+
+        if(!document.getOwner().getEmail().equals(userEmail)){
+            throw new RuntimeException("You do not have permission to delete this document");
+        }
+
+        Files.deleteIfExists(Paths.get(document.getFileUrl()));
+
+        documentRepository.delete(document);
+    }
+
+    private DocumentResponse mapToDto(Document doc){
+        return DocumentResponse.builder()
+                .id(doc.getId())
+                .title(doc.getTitle())
+                .status(doc.getStatus().name())
+                .createdAt(doc.getCreatedAt())
+                .build();
+    }
+}
