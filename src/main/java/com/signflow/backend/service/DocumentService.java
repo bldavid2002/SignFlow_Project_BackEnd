@@ -7,8 +7,13 @@ import com.signflow.backend.dto.DocumentResponse;
 import com.signflow.backend.repository.DocumentRepository;
 import com.signflow.backend.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
+import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import tools.jackson.core.PrettyPrinter;
 
 
@@ -27,24 +32,29 @@ public class DocumentService {
     private final DocumentRepository documentRepository;
     private final UserRepository userRepository;
 
-    private String UPLOAD_DIRECTORY = "uploads/";
+    private final S3Client s3Client;
+
+    @Value("${aws.s3.bucket.name}")
+    private String bucketName;
+
 
     public DocumentResponse uploadedDocument(MultipartFile file, String userEmail) throws IOException{
             User owner = userRepository.findByEmail(userEmail)
                     .orElseThrow(()-> new RuntimeException("User not found"));
 
-        Path uploadPath = Paths.get(UPLOAD_DIRECTORY);
-        if (!Files.exists(uploadPath)){
-            Files.createDirectories(uploadPath);
-        }
+        String fileKey = UUID.randomUUID() + "_" + file.getOriginalFilename();
 
-        String fileName = System.currentTimeMillis() + "_" + file.getOriginalFilename();
-        Path filePath = uploadPath.resolve(fileName);
-        Files.write(filePath, file.getBytes());
+        PutObjectRequest putObjectRequest = PutObjectRequest.builder()
+                .bucket(bucketName)
+                .key(fileKey)
+                .contentType(file.getContentType())
+                .build();
+
+        s3Client.putObject(putObjectRequest, RequestBody.fromBytes(file.getBytes()));
 
         Document document = Document.builder()
                 .title(file.getOriginalFilename())
-                .fileUrl(filePath.toString())
+                .fileUrl(fileKey)
                 .status(DocumentStatus.UPLOADED)
                 .owner(owner)
                 .build();
@@ -70,7 +80,11 @@ public class DocumentService {
             throw new RuntimeException("You do not have permission to delete this document");
         }
 
-        Files.deleteIfExists(Paths.get(document.getFileUrl()));
+        DeleteObjectRequest deleteObjectRequest = DeleteObjectRequest.builder()
+                        .bucket(bucketName)
+                        .key(document.getFileUrl())
+                        .build();
+        s3Client.deleteObject(deleteObjectRequest);
 
         documentRepository.delete(document);
     }
