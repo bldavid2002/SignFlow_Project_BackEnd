@@ -15,6 +15,10 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.util.ReflectionTestUtils;
+import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.model.PutObjectResponse;
 
 import javax.print.Doc;
 import java.io.IOException;
@@ -36,6 +40,9 @@ public class DocumentServiceTest {
     @Mock
     private UserRepository userRepository;
 
+    @Mock
+    private S3Client s3Client;
+
     @InjectMocks
     private DocumentService documentService;
 
@@ -47,7 +54,7 @@ public class DocumentServiceTest {
     @BeforeEach
     void setUp(){
         mockUser = User.builder().id(UUID.randomUUID()).email("test@email.com").build();
-        ReflectionTestUtils.setField(documentService, "UPLOAD_DIRECTORY", tempDir.toString() + "/");
+        ReflectionTestUtils.setField(documentService, "bucketName", "test-bucket");
     }
 
     @Test
@@ -64,11 +71,15 @@ public class DocumentServiceTest {
         when(userRepository.findByEmail(mockUser.getEmail())).thenReturn(Optional.of(mockUser));
         when(documentRepository.save(any(Document.class))).thenReturn(saveDoc);
 
+        when(s3Client.putObject(any(PutObjectRequest.class), any(RequestBody.class)))
+                .thenReturn(PutObjectResponse.builder().build());
+
         DocumentResponse response = documentService.uploadedDocument(mockFile, mockUser.getEmail());
 
         assertThat(response.getTitle()).isEqualTo("test.pdf");
         assertThat(response.getStatus()).isEqualTo("UPLOADED");
         verify(documentRepository, times(1)).save(any(Document.class));
+        verify(s3Client, times(1)).putObject(any(PutObjectRequest.class), any(RequestBody.class));
     }
 
     @Test
