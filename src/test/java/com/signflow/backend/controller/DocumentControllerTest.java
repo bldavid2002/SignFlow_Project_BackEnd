@@ -107,4 +107,26 @@ public class DocumentControllerTest {
                 .andExpect(jsonPath("$.status").value("SIGNED"));
 
     }
+
+    @Test
+    void shouldWatermarkDocument() throws Exception {
+        UUID docId = UUID.randomUUID();
+
+        String watermarkText = "CONFIDENTIAL";
+
+        DocumentResponse response = DocumentResponse.builder()
+                .title("contract.pdf")
+                .status("UPLOADED")
+                .build();
+
+        when(signatureService.watermarkDocument(eq(docId), eq(watermarkText), eq("test@email.com")))
+                .thenReturn(response);
+
+        mockMvc.perform(put("/api/v1/documents/" + docId + "/watermark")
+                .param("text", watermarkText)
+                .principal(new UsernamePasswordAuthenticationToken("test@email.com", null)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.title").value("contract.pdf"));
+
+    }
 }
