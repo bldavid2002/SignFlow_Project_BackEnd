@@ -4,6 +4,7 @@ package com.signflow.backend.controller;
 import com.signflow.backend.config.JwtService;
 import com.signflow.backend.dto.DocumentResponse;
 import com.signflow.backend.service.DocumentService;
+import com.signflow.backend.service.SignatureService;
 import org.springframework.http.MediaType;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -40,6 +41,9 @@ public class DocumentControllerTest {
 
     @MockitoBean
     private UserDetailsService userDetailsService;
+
+    @MockitoBean
+    private SignatureService signatureService;
 
     @Test
     void shouldUploadDocument() throws Exception{
@@ -85,6 +89,22 @@ public class DocumentControllerTest {
                 .principal(new UsernamePasswordAuthenticationToken("test@email.com",null)))
                 .andExpect(status().isOk())
                 .andExpect(content().string("Document deleted successfully. "));
+
+    }
+
+    @Test
+    void shouldSignDocument() throws Exception {
+        UUID docId = UUID.randomUUID();
+        DocumentResponse response = DocumentResponse.builder()
+                .title("contract.pdf")
+                .status("SIGNED")
+                .build();
+
+        when(signatureService.signDocument(eq(docId), eq("test@email.com"))).thenReturn(response);
+        mockMvc.perform(put("/api/v1/documents/" + docId + "/sign")
+                .principal(new UsernamePasswordAuthenticationToken("test@email.com",null)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("SIGNED"));
 
     }
 }
