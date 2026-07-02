@@ -56,4 +56,15 @@ public class DocumentController {
         DocumentResponse response = signatureService.signDocument(id, userEmail);
         return ResponseEntity.ok(response);
     }
+
+    @PutMapping("/{id}/watermark")
+    public ResponseEntity<DocumentResponse> watermarkDocument(
+            @PathVariable UUID id,
+            @RequestParam("text") String watermarkText,
+            Authentication authentication
+    )throws IOException {
+        String userEmail = authentication.getName();
+        DocumentResponse response = signatureService.watermarkDocument(id, watermarkText, userEmail);
+        return ResponseEntity.ok(response);
+    }
 }

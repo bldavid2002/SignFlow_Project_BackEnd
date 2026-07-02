@@ -28,6 +28,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.InstanceOfAssertFactories.optional;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
@@ -58,6 +59,7 @@ public class SignatureServiceTest {
                 .id(UUID.randomUUID())
                 .title("contract.pdf")
                 .fileUrl("s3-key-123")
+                .status(DocumentStatus.UPLOADED)
                 .owner(mockUser)
                 .build();
         ReflectionTestUtils.setField(signatureService, "bucketName", "test-bucket");
@@ -104,5 +106,26 @@ public class SignatureServiceTest {
 
         assertThat(exception.getMessage()).isEqualTo("This document is already signed");
         verify(s3Client, never()).getObjectAsBytes(any(GetObjectRequest.class));
+    }
+
+    @Test
+    void shouldWatermarkDocumentSuccessfully() throws IOException{
+        byte[] dummyPdf = generateDummyPdf();
+        String watermarkText = "CONFIDENTIAL";
+
+        when(userRepository.findByEmail(mockUser.getEmail())).thenReturn(Optional.of(mockUser));
+        when(documentRepository.findById(mockDocument.getId())).thenReturn(Optional.of(mockDocument));
+
+
+        when(s3Client.getObjectAsBytes(any(GetObjectRequest.class)))
+                .thenReturn(ResponseBytes.fromByteArray(GetObjectResponse.builder().build(), dummyPdf));
+
+        when(documentRepository.save(any(Document.class))).thenReturn(mockDocument);
+
+        DocumentResponse response = signatureService.watermarkDocument(mockDocument.getId(), watermarkText, mockUser.getEmail());
+
+        assertThat(response.getTitle()).isEqualTo("contract.pdf");
+        verify(s3Client, times(1)).getObjectAsBytes(any(GetObjectRequest.class));
+        verify(s3Client, times(1)).putObject(any(PutObjectRequest.class), any(RequestBody.class));
     }
 }
