@@ -15,8 +15,11 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.util.ReflectionTestUtils;
+import software.amazon.awssdk.core.ResponseBytes;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectResponse;
 
@@ -101,5 +104,38 @@ public class DocumentServiceTest {
         verify(documentRepository, never()).delete(any());
     }
 
+    @Test
+    void shouldDownloadDocumentBytesSuccessfully(){
+        Document mockDoc = Document.builder()
+                .id(UUID.randomUUID())
+                .title("contract.pdf")
+                .fileUrl("s3-key-123")
+                .owner(mockUser)
+                .build();
+
+        byte[] fakePdfBytes = "Fake PDF Data".getBytes();
+
+        when(documentRepository.findById(mockDoc.getId())).thenReturn(Optional.of(mockDoc));
+        when(s3Client.getObjectAsBytes(any(GetObjectRequest.class)))
+                .thenReturn(ResponseBytes.fromByteArray(GetObjectResponse.builder().build(), fakePdfBytes));
+
+        byte[] result = documentService.downloadDocumentBytes(mockDoc.getId(), mockUser.getEmail());
+        assertThat(result).isEqualTo(fakePdfBytes);
+        verify(s3Client, times(1)).getObjectAsBytes(any(GetObjectRequest.class));
+
+    }
+
+    @Test
+    void shouldGetDocumentSuccessfully() {
+        Document mockDoc = Document.builder()
+                .id(UUID.randomUUID())
+                .title("contract.pdf")
+                .owner(mockUser)
+                .build();
+        when(documentRepository.findById(mockDoc.getId())).thenReturn(Optional.of(mockDoc));
+        Document result = documentService.getDocument(mockDoc.getId(), mockUser.getEmail());
+
+        assertThat(result.getTitle()).isEqualTo("contract.pdf");
+    }
 
 }

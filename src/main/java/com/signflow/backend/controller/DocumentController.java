@@ -1,14 +1,19 @@
 package com.signflow.backend.controller;
 
 
+import com.signflow.backend.Entity.Document;
 import com.signflow.backend.dto.DocumentResponse;
 import com.signflow.backend.service.DocumentService;
 import com.signflow.backend.service.SignatureService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+
+
 import java.io.IOException;
 
 import java.util.List;
@@ -66,5 +71,25 @@ public class DocumentController {
         String userEmail = authentication.getName();
         DocumentResponse response = signatureService.watermarkDocument(id, watermarkText, userEmail);
         return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/{id}/download")
+    public ResponseEntity<byte[]> downloadDocument(
+            @PathVariable UUID id,
+            Authentication authentication
+    ){
+        String userEmail = authentication.getName();
+
+        byte[] pdfBytes = documentService.downloadDocumentBytes(id, userEmail);
+
+        Document document = documentService.getDocument(id, userEmail);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_PDF);
+        headers.setContentDispositionFormData("attachment", document.getTitle());
+
+        return ResponseEntity.ok()
+                .headers(headers)
+                .body(pdfBytes);
     }
 }

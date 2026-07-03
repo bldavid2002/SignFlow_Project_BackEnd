@@ -1,10 +1,12 @@
 package com.signflow.backend.controller;
 
 
+import com.signflow.backend.Entity.Document;
 import com.signflow.backend.config.JwtService;
 import com.signflow.backend.dto.DocumentResponse;
 import com.signflow.backend.service.DocumentService;
 import com.signflow.backend.service.SignatureService;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -127,6 +129,30 @@ public class DocumentControllerTest {
                 .principal(new UsernamePasswordAuthenticationToken("test@email.com", null)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.title").value("contract.pdf"));
+
+    }
+
+    @Test
+    void shouldDownloadDocument() throws Exception {
+        UUID docId = UUID.randomUUID();
+        byte[] fakePdfBytes = "Dummy PDF Content for Download".getBytes();
+
+        Document mockDocument = Document.builder()
+                .title("contract.pdf")
+                .build();
+
+        when(documentService.downloadDocumentBytes(eq(docId),eq("test@email.com")))
+                .thenReturn(fakePdfBytes);
+
+        when(documentService.getDocument(eq(docId),eq("test@email.com")))
+                .thenReturn(mockDocument);
+
+        mockMvc.perform(get("/api/v1/documents/" + docId + "/download")
+                .principal(new UsernamePasswordAuthenticationToken("test@email.com",null)))
+                .andExpect(status().isOk())
+                .andExpect(header().string(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_PDF_VALUE))
+                .andExpect(header().exists(HttpHeaders.CONTENT_DISPOSITION))
+                .andExpect(content().bytes(fakePdfBytes));
 
     }
 }
