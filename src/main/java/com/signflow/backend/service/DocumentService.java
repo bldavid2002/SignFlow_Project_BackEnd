@@ -13,6 +13,7 @@ import org.springframework.web.multipart.MultipartFile;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import tools.jackson.core.PrettyPrinter;
 
@@ -96,5 +97,32 @@ public class DocumentService {
                 .status(doc.getStatus().name())
                 .createdAt(doc.getCreatedAt())
                 .build();
+    }
+
+
+    public byte[] downloadDocumentBytes(UUID documentId, String userEmail){
+        Document document = documentRepository.findById(documentId)
+                .orElseThrow(() -> new RuntimeException("Document not found"));
+
+        if (!document.getOwner().getEmail().equals(userEmail)){
+            throw new RuntimeException("You do not have permission to download this document");
+        }
+        GetObjectRequest getObjectRequest = GetObjectRequest.builder()
+                .bucket(bucketName)
+                .key(document.getFileUrl())
+                .build();
+
+        return s3Client.getObjectAsBytes(getObjectRequest).asByteArray();
+    }
+
+    public Document getDocument(UUID documentId, String userEmail) {
+        Document document = documentRepository.findById(documentId)
+                .orElseThrow(() -> new RuntimeException("Document not found"));
+
+        if (!document.getOwner().getEmail().equals(userEmail)){
+            throw new RuntimeException("You do not have permission to view this document");
+        }
+
+        return document;
     }
 }
