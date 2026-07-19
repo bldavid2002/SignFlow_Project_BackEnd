@@ -4,6 +4,7 @@ import com.signflow.backend.Entity.Document;
 import com.signflow.backend.Entity.DocumentStatus;
 import com.signflow.backend.Entity.User;
 import com.signflow.backend.dto.DocumentResponse;
+import com.signflow.backend.dto.VerificationResponse;
 import com.signflow.backend.repository.DocumentRepository;
 import com.signflow.backend.repository.UserRepository;
 import org.apache.pdfbox.pdmodel.PDDocument;
@@ -24,12 +25,14 @@ import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.security.KeyStore;
 import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.InstanceOfAssertFactories.optional;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
@@ -52,7 +55,7 @@ public class SignatureServiceTest {
     private Document mockDocument;
 
     @BeforeEach
-    void setUp(){
+    void setUp() throws Exception {
         mockUser = User.builder().id(UUID.randomUUID()).email("test@email.com").build();
 
         mockDocument = Document.builder()
@@ -62,8 +65,20 @@ public class SignatureServiceTest {
                 .status(DocumentStatus.UPLOADED)
                 .owner(mockUser)
                 .build();
-        ReflectionTestUtils.setField(signatureService, "bucketName", "test-bucket");
 
+        ReflectionTestUtils.setField(signatureService, "bucketName", "test-bucket");
+        ReflectionTestUtils.setField(signatureService, "keystorePassword", "changeit");
+        ReflectionTestUtils.setField(signatureService, "keystoreAlias", "signflow-key");
+
+        KeyStore testKeyStore = KeyStore.getInstance("PKCS12");
+        try (InputStream is = getClass().getClassLoader().getResourceAsStream("signflow-keystore.p12")) {
+            if (is == null) {
+                throw new RuntimeException("Test keystore not found! Ensure it is in src/main/resources or src/test/resources");
+            }
+            testKeyStore.load(is, "changeit".toCharArray());
+        }
+
+        ReflectionTestUtils.setField(signatureService, "keyStore", testKeyStore);
     }
 
     private byte[] generateDummyPdf() throws IOException {
@@ -127,5 +142,38 @@ public class SignatureServiceTest {
         assertThat(response.getTitle()).isEqualTo("contract.pdf");
         verify(s3Client, times(1)).getObjectAsBytes(any(GetObjectRequest.class));
         verify(s3Client, times(1)).putObject(any(PutObjectRequest.class), any(RequestBody.class));
+    }
+
+
+    @Test
+    void verifySignature_UnsignedDocument_ReturnsFalse() throws IOException {
+        UUID documentId = UUID.randomUUID();
+        String userEmail = "test@example.com";
+
+        User mockUser = User.builder().email(userEmail).build();
+        Document mockDocument = Document.builder()
+                .id(documentId)
+                .fileUrl("test-file.pdf")
+                .owner(mockUser)
+                .build();
+
+
+        byte[] unsignedPdfBytes;
+        try (PDDocument pdf = new PDDocument(); ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
+            pdf.addPage(new PDPage());
+            pdf.save(baos);
+            unsignedPdfBytes = baos.toByteArray();
+        }
+
+        when(documentRepository.findById(documentId)).thenReturn(Optional.of(mockDocument));
+        ResponseBytes<GetObjectResponse> mockS3Response = ResponseBytes.fromByteArray(
+                GetObjectResponse.builder().build(), unsignedPdfBytes);
+        when(s3Client.getObjectAsBytes(any(GetObjectRequest.class))).thenReturn(mockS3Response);
+
+        VerificationResponse response = signatureService.verifySignature(documentId, userEmail);
+
+        assertNotNull(response);
+        assertFalse(response.isSigned(), "The response should indicate the document is NOT signed.");
+        assertEquals("No cryptographic signatures found on this document", response.getMessage());
     }
 }

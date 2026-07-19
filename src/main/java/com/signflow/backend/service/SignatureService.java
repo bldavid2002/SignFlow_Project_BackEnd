@@ -5,10 +5,12 @@ import com.signflow.backend.Entity.Document;
 import com.signflow.backend.Entity.DocumentStatus;
 import com.signflow.backend.Entity.User;
 import com.signflow.backend.dto.DocumentResponse;
+import com.signflow.backend.dto.VerificationResponse;
 import com.signflow.backend.repository.DocumentRepository;
 import com.signflow.backend.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 
+import lombok.extern.slf4j.Slf4j;
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
@@ -42,6 +44,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.rmi.RemoteException;
 import java.security.KeyStore;
 import java.security.PrivateKey;
 import java.security.cert.Certificate;
@@ -50,10 +53,12 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.Calendar;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.function.ToDoubleBiFunction;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class SignatureService {
@@ -247,4 +252,39 @@ public class SignatureService {
         }
 
 }
+
+    public VerificationResponse verifySignature(UUID documentId, String userEmail) throws IOException {
+        Document document = documentRepository.findById(documentId)
+                .orElseThrow(()->new RuntimeException("Document not fund"));
+
+        if (!document.getOwner().getEmail().equals(userEmail)){
+            throw new RuntimeException("You do not have permission to verify this document");
+        }
+
+        GetObjectRequest getObjectRequest = GetObjectRequest.builder()
+                .bucket(bucketName)
+                .key(document.getFileUrl())
+                .build();
+
+        byte[] pdfBytes = s3Client.getObjectAsBytes(getObjectRequest).asByteArray();
+
+        try (PDDocument pdDocument = Loader.loadPDF(pdfBytes)){
+            List<PDSignature> signatures = pdDocument.getSignatureDictionaries();
+
+            if (signatures == null || signatures.isEmpty()) {
+                return VerificationResponse.builder()
+                        .isSigned(false)
+                        .message("No cryptographic signatures found on this document")
+                        .build();
+            }
+
+            PDSignature signature = signatures.get(0);
+
+            return VerificationResponse.builder()
+                    .isSigned(true)
+                    .signedBy(signature.getName())
+                    .message("Document contains a valid signature footpring")
+                    .build();
+        }
+    }
 }
