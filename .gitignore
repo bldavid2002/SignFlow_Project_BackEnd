@@ -38,3 +38,7 @@ build/
 application-secret.properties
 application-secret.yml
 application-local.properties
+
+# Ignore Keystore files
+*.p12
+*.jks
