@@ -3,6 +3,7 @@ package com.signflow.backend.controller;
 
 import com.signflow.backend.Entity.Document;
 import com.signflow.backend.dto.DocumentResponse;
+import com.signflow.backend.dto.VerificationResponse;
 import com.signflow.backend.service.DocumentService;
 import com.signflow.backend.service.SignatureService;
 import lombok.RequiredArgsConstructor;
@@ -91,5 +92,15 @@ public class DocumentController {
         return ResponseEntity.ok()
                 .headers(headers)
                 .body(pdfBytes);
+    }
+
+    @GetMapping("/{id}/verify")
+    public ResponseEntity<VerificationResponse> verifyDocument(
+            @PathVariable UUID id,
+            Authentication authentication
+    )throws IOException {
+        String userEmail = authentication.getName();
+        VerificationResponse response = signatureService.verifySignature(id, userEmail);
+        return ResponseEntity.ok(response);
     }
 }
