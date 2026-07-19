@@ -19,13 +19,10 @@ public class KeyConfig {
 
     @Bean
     public KeyStore signatureKeyStore() throws Exception {
-
         KeyStore keyStore = KeyStore.getInstance("PKCS12");
-        String path = keystorePath.replace("classpath","");
-
-        try (InputStream is = getClass().getClassLoader().getResourceAsStream(path)){
+        try (InputStream is = getClass().getClassLoader().getResourceAsStream(keystorePath)){
             if (is == null) {
-                throw new RuntimeException("Keystore file not found in classpath: " + path);
+                throw new RuntimeException("Keystore file not found in classpath: " + keystorePath);
             }
                 keyStore.load(is, keyStorePassword.toCharArray());
             return keyStore;

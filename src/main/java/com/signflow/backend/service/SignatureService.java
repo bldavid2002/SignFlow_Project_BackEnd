@@ -16,7 +16,18 @@ import org.apache.pdfbox.pdmodel.PDPageContentStream;
 import org.apache.pdfbox.pdmodel.font.PDType1Font;
 import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
 import org.apache.pdfbox.pdmodel.graphics.state.PDExtendedGraphicsState;
+import org.apache.pdfbox.pdmodel.interactive.digitalsignature.PDSignature;
+import org.apache.pdfbox.pdmodel.interactive.digitalsignature.SignatureInterface;
 import org.apache.pdfbox.util.Matrix;
+import org.bouncycastle.cert.jcajce.JcaCertStore;
+import org.bouncycastle.cms.CMSProcessableByteArray;
+import org.bouncycastle.cms.CMSSignedData;
+import org.bouncycastle.cms.CMSSignedDataGenerator;
+import org.bouncycastle.cms.CMSTypedData;
+import org.bouncycastle.cms.jcajce.JcaSignerInfoGeneratorBuilder;
+import org.bouncycastle.operator.ContentSigner;
+import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
+import org.bouncycastle.operator.jcajce.JcaDigestCalculatorProviderBuilder;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import software.amazon.awssdk.core.ResponseBytes;
@@ -30,8 +41,15 @@ import java.awt.*;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.security.KeyStore;
+import java.security.PrivateKey;
+import java.security.cert.Certificate;
+import java.security.cert.X509Certificate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Arrays;
+import java.util.Calendar;
 import java.util.Map;
 import java.util.UUID;
 import java.util.function.ToDoubleBiFunction;
@@ -46,6 +64,14 @@ public class SignatureService {
 
     @Value("${aws.s3.bucket.name}")
     private String bucketName;
+
+    @Value("${signature.keystore.password}")
+    private String keystorePassword;
+
+    @Value("${signature.keystore.alias}")
+    private String keystoreAlias;
+
+    private final KeyStore keyStore;
 
     public DocumentResponse signDocument(UUID documentId, String userEmail) throws IOException{
         User owner = userRepository.findByEmail(userEmail)
@@ -69,7 +95,7 @@ public class SignatureService {
 
         ResponseBytes<GetObjectResponse> s3ObjectBytes = s3Client.getObjectAsBytes(getObjectRequest);
 
-        byte[] signedBytes = stampSignatureOnPdf(s3ObjectBytes.asByteArray(), owner.getEmail());
+        byte[] signedBytes = applyDigitalSignature(s3ObjectBytes.asByteArray(), owner.getEmail());
 
         PutObjectRequest putObjectRequest = PutObjectRequest.builder()
                 .bucket(bucketName)
@@ -177,4 +203,48 @@ public class SignatureService {
 
         }
     }
+
+    private byte[] applyDigitalSignature(byte[] originalPdf, String email) throws IOException {
+        try (PDDocument pdfDocument = Loader.loadPDF(originalPdf); ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
+            PrivateKey privateKey = (PrivateKey) keyStore.getKey(keystoreAlias, keystorePassword.toCharArray());
+            Certificate[] certificateChain = keyStore.getCertificateChain(keystoreAlias);
+            PDSignature signature = new PDSignature();
+            signature.setFilter(PDSignature.FILTER_ADOBE_PPKLITE);
+            signature.setSubFilter(PDSignature.SUBFILTER_ADBE_PKCS7_DETACHED);
+            signature.setName(email);
+            signature.setLocation("Nyiregyhaza, HU");
+            signature.setReason("Cryptographically Secured by SignFlow");
+            signature.setSignDate(Calendar.getInstance());
+
+            pdfDocument.addSignature(signature, new SignatureInterface() {
+                @Override
+                public byte[] sign(InputStream content) throws IOException {
+                    try {
+
+                        CMSSignedDataGenerator gen = new CMSSignedDataGenerator();
+                        X509Certificate cert = (X509Certificate) certificateChain[0];
+
+                        ContentSigner shaSigner = new JcaContentSignerBuilder("SHA256WithRSA").build(privateKey);
+
+                        gen.addSignerInfoGenerator(new JcaSignerInfoGeneratorBuilder(
+                                new JcaDigestCalculatorProviderBuilder().build()).build(shaSigner, cert));
+                        gen.addCertificates(new JcaCertStore(Arrays.asList(certificateChain)));
+
+                        CMSTypedData msg = new CMSProcessableByteArray(content.readAllBytes());
+                        CMSSignedData signedData = gen.generate(msg, false);
+
+                        return signedData.getEncoded();
+                    } catch (Exception e) {
+                        throw new IOException("Could not apply cryptographic signature", e);
+                    }
+                }
+
+            });
+        pdfDocument.saveIncremental(outputStream);
+        return outputStream.toByteArray();
+        }catch (Exception e){
+            throw new IOException("Error during digital signature", e);
+        }
+
+}
 }
