@@ -22,11 +22,15 @@ public class S3Config {
 
     @Bean
     public S3Client s3Client(){
+
+        System.out.println("DEBUG S3 Config - Region: " + region);
+        System.out.println("DEBUG S3 Config - AccessKey present: " + (accessKey != null && !accessKey.isEmpty()));
         AwsBasicCredentials credentials = AwsBasicCredentials.create(accessKey, secretKey);
 
         return S3Client.builder()
                 .region(Region.of(region))
                 .credentialsProvider(StaticCredentialsProvider.create(credentials))
+                .serviceConfiguration(s ->  s.pathStyleAccessEnabled(true))
                 .build();
 
     }
