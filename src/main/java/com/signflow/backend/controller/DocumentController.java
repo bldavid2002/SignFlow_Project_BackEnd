@@ -89,9 +89,6 @@ public class DocumentController {
 
         Document document = documentRepository.findById(id).orElseThrow();
 
-//        HttpHeaders headers = new HttpHeaders();
-//        headers.setContentType(MediaType.APPLICATION_PDF);
-//        headers.setContentDispositionFormData("attachment", document.getTitle());
 
        return ResponseEntity.ok()
                .header("Content-Disposition", "attachment; filename=\"" + document.getTitle() + "\"")
