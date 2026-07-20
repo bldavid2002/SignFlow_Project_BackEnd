@@ -99,21 +99,21 @@ public class DocumentService {
                 .build();
     }
 
-
-    public byte[] downloadDocumentBytes(UUID documentId, String userEmail){
-        Document document = documentRepository.findById(documentId)
-                .orElseThrow(() -> new RuntimeException("Document not found"));
-
-        if (!document.getOwner().getEmail().equals(userEmail)){
-            throw new RuntimeException("You do not have permission to download this document");
-        }
-        GetObjectRequest getObjectRequest = GetObjectRequest.builder()
-                .bucket(bucketName)
-                .key(document.getFileUrl())
-                .build();
-
-        return s3Client.getObjectAsBytes(getObjectRequest).asByteArray();
-    }
+//
+//    public byte[] downloadDocumentBytes(UUID documentId, String userEmail){
+//        Document document = documentRepository.findById(documentId)
+//                .orElseThrow(() -> new RuntimeException("Document not found"));
+//
+//        if (!document.getOwner().getEmail().equals(userEmail)){
+//            throw new RuntimeException("You do not have permission to download this document");
+//        }
+//        GetObjectRequest getObjectRequest = GetObjectRequest.builder()
+//                .bucket(bucketName)
+//                .key(document.getFileUrl())
+//                .build();
+//
+//        return s3Client.getObjectAsBytes(getObjectRequest).asByteArray();
+//    }
 
     public Document getDocument(UUID documentId, String userEmail) {
         Document document = documentRepository.findById(documentId)
@@ -124,5 +124,20 @@ public class DocumentService {
         }
 
         return document;
+    }
+
+    public byte[] getDocumentBytes(UUID id, String userEmail) throws IOException {
+        Document document = documentRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Document not found"));
+
+        if (!document.getOwner().getEmail().equals(userEmail)){
+            throw new RuntimeException("Unauthorized");
+        }
+
+        GetObjectRequest getObjectRequest = GetObjectRequest.builder()
+                .bucket(bucketName)
+                .key(document.getFileUrl())
+                .build();
+        return s3Client.getObjectAsBytes(getObjectRequest).asByteArray();
     }
 }
