@@ -4,6 +4,7 @@ package com.signflow.backend.controller;
 import com.signflow.backend.Entity.Document;
 import com.signflow.backend.dto.DocumentResponse;
 import com.signflow.backend.dto.VerificationResponse;
+import com.signflow.backend.repository.DocumentRepository;
 import com.signflow.backend.service.DocumentService;
 import com.signflow.backend.service.SignatureService;
 import lombok.RequiredArgsConstructor;
@@ -13,6 +14,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 
 
 import java.io.IOException;
@@ -28,6 +30,8 @@ public class DocumentController {
     private final DocumentService documentService;
 
     private final SignatureService signatureService;
+
+    private final DocumentRepository documentRepository;
 
     @PostMapping("/upload")
     public ResponseEntity<DocumentResponse> uploadDocument(
@@ -78,20 +82,22 @@ public class DocumentController {
     public ResponseEntity<byte[]> downloadDocument(
             @PathVariable UUID id,
             Authentication authentication
-    ){
+    )throws IOException{
         String userEmail = authentication.getName();
 
-        byte[] pdfBytes = documentService.downloadDocumentBytes(id, userEmail);
+        byte[] pdfBytes = documentService.getDocumentBytes(id, userEmail);
 
-        Document document = documentService.getDocument(id, userEmail);
+        Document document = documentRepository.findById(id).orElseThrow();
 
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_PDF);
-        headers.setContentDispositionFormData("attachment", document.getTitle());
+//        HttpHeaders headers = new HttpHeaders();
+//        headers.setContentType(MediaType.APPLICATION_PDF);
+//        headers.setContentDispositionFormData("attachment", document.getTitle());
 
-        return ResponseEntity.ok()
-                .headers(headers)
-                .body(pdfBytes);
+       return ResponseEntity.ok()
+               .header("Content-Disposition", "attachment; filename=\"" + document.getTitle() + "\"")
+               .contentType(MediaType.APPLICATION_PDF)
+               .body(pdfBytes);
+
     }
 
     @GetMapping("/{id}/verify")
@@ -103,4 +109,6 @@ public class DocumentController {
         VerificationResponse response = signatureService.verifySignature(id, userEmail);
         return ResponseEntity.ok(response);
     }
+
+
 }
