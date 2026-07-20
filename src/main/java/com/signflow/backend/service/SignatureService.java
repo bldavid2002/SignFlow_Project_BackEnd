@@ -49,6 +49,7 @@ import java.security.KeyStore;
 import java.security.PrivateKey;
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
+import java.text.SimpleDateFormat;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
@@ -57,6 +58,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.function.ToDoubleBiFunction;
+import java.util.logging.SimpleFormatter;
 
 @Slf4j
 @Service
@@ -279,11 +281,14 @@ public class SignatureService {
             }
 
             PDSignature signature = signatures.get(0);
+            Calendar cal = signature.getSignDate();
+            String formattedDate = (cal != null) ? new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(cal.getTime()) : "N/A";
 
             return VerificationResponse.builder()
                     .isSigned(true)
                     .signedBy(signature.getName())
                     .message("Document contains a valid signature footpring")
+                    .signature(formattedDate)
                     .build();
         }
     }
