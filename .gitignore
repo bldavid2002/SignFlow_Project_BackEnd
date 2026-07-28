@@ -42,3 +42,7 @@ application-local.properties
 # Ignore Keystore files
 *.p12
 *.jks
+
+.terraform/
+*.tfstate
+*.tfstate.backup
