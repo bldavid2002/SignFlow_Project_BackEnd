@@ -130,3 +130,19 @@ The applications exposes a RESTful API. ALL endpoints are prefixed with "/api/v1
 | **PATCH** | '/documents/{id}' | Renames a document's display name | '{"fileName": "new_name.pdf}' | '200 OK' |
 | **GET** | '/health' | Application "heath" check for Docker/AWS load balancers | *None* | '200 OK' '{"status": "Up" }'|
 
+
+## 4. DevOps and Deployment Architecture
+
+The application is fully containerized and designed to run in modern cloud-native environments (Kubernetes), ensuring high availability, automated scaling, and robust monitoring.
+
+### Infrastructure & Deployment Stack
+* **Containerization:** Multi-stage 'Dockerfile' implementation optimizing final image sizes for the Spring Boot backend.
+* **Kubernetes K8s:** Declarative deployments 'deployment.yaml' and services managing backend pods, secure environment variables via **Secrets**, and persistent database connectivity.
+* **Infrastructure as Code (Terraform):** Manages cloud resource integration such as AWS S3 storage buckets cleanly through state configurations.
+* **Monitoring & Observability:** Integrated **Spring Boot Actuator** exposing metrics through '/actuator/prometheus' and '/actuator/health', scraped automatically via Kubernetes annotations by monitoring systems.
+
+### Quick DevOps Commands Reference
+
+* **Build Docker Image:**
+  ```bash
+  docker build -t signflow-backend:latest .
