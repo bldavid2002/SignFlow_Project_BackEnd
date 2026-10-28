@@ -1,6 +1,3 @@
-# VeriDoc_Project_BackEnd
-PDF Signing app BackEnd
-
 # SignFlow - Secure PDF Watermarking & Storage System
 
 ## 1. Project Brief (Executive Summary)
